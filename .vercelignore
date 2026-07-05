@@ -1,0 +1,44 @@
+# Exclude large datasets and training artifacts not needed for runtime
+dataset/
+runs/
+snapshots/
+yololeaf/
+
+# Exclude extra model files not used by app.py
+best_leaf_detector.pt
+best_leaf_detector1.pt
+yolov8n.pt
+
+# Exclude training/analysis scripts
+train_gpu.py
+clean_dataset.py
+dummy.py
+gradcam_visualization.py
+predict_tomato_gradcam.py
+tomato.py
+tomcla.py
+tompi.py
+leaf.py
+
+# Exclude image samples
+*.jfif
+hel.jfif
+lb.jfif
+mold.jfif
+
+# Exclude Python cache and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Exclude version control
+.git/
+.gitignore
+
+# Exclude local development files
+.venv/
+venv/
+env/
+*.log
