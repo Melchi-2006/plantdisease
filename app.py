@@ -2,14 +2,11 @@ import io
 import os
 from pathlib import Path
 
-import torch
-import torch.nn as nn
 from PIL import Image, ImageOps
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
-from torchvision import models, transforms
 
 BASE_DIR = Path(__file__).resolve().parent
 CLASSIFIER_MODEL = BASE_DIR / "tomato_disease_model.pth"
@@ -18,7 +15,7 @@ CLASSES_PATH = BASE_DIR / "classes.pth"
 MODEL = None
 CLASSES = None
 TRANSFORM = None
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = None
 
 HTML_PAGE = """
 <!doctype html>
@@ -70,9 +67,15 @@ HTML_PAGE = """
 
 
 def load_models():
-    global MODEL, CLASSES, TRANSFORM
+    global MODEL, CLASSES, TRANSFORM, DEVICE
     if MODEL is not None and CLASSES is not None and TRANSFORM is not None:
         return
+
+    # Lazy-import heavy ML libraries so the module can be imported
+    # on deployment platforms that don't have these packages available
+    import torch
+    import torch.nn as nn
+    from torchvision import models, transforms
 
     if not CLASSIFIER_MODEL.exists() or not CLASSES_PATH.exists():
         raise FileNotFoundError("Model files not found in the project folder")
@@ -81,6 +84,7 @@ def load_models():
 
     MODEL = models.efficientnet_b0(weights=None)
     MODEL.classifier[1] = nn.Linear(MODEL.classifier[1].in_features, len(CLASSES))
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     MODEL.load_state_dict(torch.load(CLASSIFIER_MODEL, map_location=DEVICE))
     MODEL.to(DEVICE)
     MODEL.eval()
@@ -104,6 +108,8 @@ async def predict(request: Request) -> JSONResponse:
             return JSONResponse({"error": "No image uploaded"}, status_code=400)
 
         load_models()
+        # Ensure torch is available in this scope (lazy import)
+        import torch
 
         image_bytes = await image_file.read()
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
