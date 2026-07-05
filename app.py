@@ -2,11 +2,38 @@ import io
 import os
 from pathlib import Path
 
-from PIL import Image, ImageOps
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
-from starlette.routing import Route
+# Minimal fallback ASGI app so the module can be imported during deployment
+# detection on platforms that don't have third-party packages installed yet.
+async def _fallback_asgi_app(scope, receive, send):
+    if scope.get("type") == "http":
+        body = b'{"error":"dependencies not installed"}'
+        headers = [(b"content-type", b"application/json")]
+        await send({"type": "http.response.start", "status": 503, "headers": headers})
+        await send({"type": "http.response.body", "body": body})
+    else:
+        await send({"type": "http.disconnect"})
+
+app = _fallback_asgi_app
+
+# Lazy-import optional dependencies (Pillow, Starlette) to avoid import-time
+# failures during platform detection. If available, we'll overwrite `app`
+# below with a proper Starlette instance.
+try:
+    from PIL import Image, ImageOps
+    from starlette.applications import Starlette
+    from starlette.requests import Request
+    from starlette.responses import HTMLResponse, JSONResponse
+    from starlette.routing import Route
+    STARLETTE_AVAILABLE = True
+except Exception:
+    Image = None
+    ImageOps = None
+    Starlette = None
+    Request = None
+    HTMLResponse = None
+    JSONResponse = None
+    Route = None
+    STARLETTE_AVAILABLE = False
 
 BASE_DIR = Path(__file__).resolve().parent
 CLASSIFIER_MODEL = BASE_DIR / "tomato_disease_model.pth"
@@ -132,7 +159,8 @@ async def predict(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
-app = Starlette(routes=[
+if STARLETTE_AVAILABLE:
+    app = Starlette(routes=[
     Route("/", home),
     Route("/predict", predict, methods=["POST"]),
 ])
